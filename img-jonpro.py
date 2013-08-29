@@ -99,8 +99,8 @@ def static_img(image):
     return static_file(image, root=site.IMG_PATH)
 
 
-@route('{}{}'.format(config.get('site', 'thumbnail_route'),
-    '<spec:re:[1-9][0-9]{0,3}s?>/<image>'))
+@route('{}{}'.format(config.get('site', 'image_route'),
+    '<image>/<spec:re:[1-9][0-9]{0,3}s?>'))
 def thumb_img(spec, image):
     
     # Is this request referring to a valid image?
