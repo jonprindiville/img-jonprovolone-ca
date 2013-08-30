@@ -1,0 +1,13 @@
+{
+    "template": "page",
+    "page-title": "About",
+    "page-content": [
+        "<p>Made with <a href='http://python.org'>Python</a> using",
+        "<a href='http://bottlepy.org/'>Bottle</a> and",
+        "<a href='https://github.com/python-imaging/Pillow'>Pillow</a>.",
+        "Source hosted at",
+        "<a href='https://github.com/jonprindiville/img-jonprovolone-ca'>GitHub</a>",
+        ".</p>"
+    ]
+}
+

@@ -87,12 +87,28 @@ def refresh_images():
 @route('/s/<skip:int>')
 @route('/n/<n:int>')
 @route('/n/<n:int>/s/<skip:int>')
-def basic(skip=0, n=10):
+def serve_main(skip=0, n=6):
     refresh_images()
-    return template('basic', title=config.get('site', 'title'),
+    return template('image-listing', title=config.get('site', 'title'),
+                    site_title=config.get('site', 'title'),
                     skip=skip, n=n, end=len(site.images),
                     images=site.images[skip:skip+n])
 
+@route('/pages/<name>')
+def serve_page(name):
+#    try:
+    page_data = json.load(open(
+        os.path.join(config.get('site', 'page_dir'), '{}.json'.format(name))))
+    return template(page_data.get('template'), data=page_data,
+        site_title=config.get('site', 'title'))
+
+#    except:
+#        abort(404, 'Page "{}" not found'.format(name))
+    
+
+@route('/assets/<file:path>')
+def serve_assets(file):
+    return static_file(file, root=config.get('site', 'asset_dir'))
 
 @route('{}{}'.format(config.get('site', 'image_route'), '<image>'))
 def static_img(image):
