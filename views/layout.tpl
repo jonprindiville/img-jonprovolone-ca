@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{title}}</title>
+    <title>{{site_title}}{{"" if (site_title == title) else " - {}".format(title)}}</title>
     <link href='http://fonts.googleapis.com/css?family=Merriweather:400,700italic|Roboto:500,300,400italic' rel='stylesheet' type='text/css' />
     <link href='/assets/basic.css' rel='stylesheet' type='text/css' />
 </head>
