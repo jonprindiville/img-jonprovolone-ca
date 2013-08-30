@@ -3,9 +3,11 @@ img-jonprovolone-ca
 
 TODO
 ----
-- Pull date from EXIF/filesystem if not in JSON
+- Pull image date from EXIF/filesystem if not in JSON
 - Sort images by something
 - Thumbnail caching to play nice with HTTP caching 
+- Describe this
+- posts/ handling
 
 Installation
 ------------
