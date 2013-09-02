@@ -1,5 +1,12 @@
-jonprovolone.ca
-===============
+[jpro]: http://jonprovolone.ca
+[bottle]: http://bottlepy.org/
+[pillow]: http://python-imaging.github.io/
+
+[jonprovolone.ca][jpro]
+=======================
+A simple [bottle][bottle]-based webapp (which will be) deployed on my personal
+site, [jonprovolone.ca][jpro]. It does some image-thumbnailing and some
+templating of pages / blog-posts.
 
 TODO
 ----
@@ -17,11 +24,11 @@ Installation
 virtualenv is probably best
 
 Requirements:
-- bottle (I am using 0.11.6)
-- Pillow (I am using 2.1.0)
+- [bottle][bottle] (I am using 0.11.6)
+- [Pillow][pillow] (I am using 2.1.0)
 - libjpeg-devel (in order for Pillow to decode JPEGs)
 
 Running
 -------
-Executing img-jonpro.py will currently use bottle's built-in server.
-On Dreamhost this will be served by Passenger (via Apache)
+Executing jonprovolone.py will currently use bottle's built-in server. On
+Dreamhost this will be served by Passenger via Apache.
