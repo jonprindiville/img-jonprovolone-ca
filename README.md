@@ -1,8 +1,11 @@
-img-jonprovolone-ca
-===================
+jonprovolone.ca
+===============
 
 TODO
 ----
+- Restrict the thumbnailing to some subset of possible sizes (also, no enlarging)
+- thumbnail cache aging/eviction
+- locking for thumbnail writing? (passenger spawns multiple processes? not sure for wsgi -- it does for ruby)
 - Pull image date from EXIF/filesystem if not in JSON
 - Sort images by something
 - Thumbnail caching to play nice with HTTP caching 
@@ -21,4 +24,4 @@ Requirements:
 Running
 -------
 Executing img-jonpro.py will currently use bottle's built-in server.
-I'll figure out deploying behind Apache later.
+On Dreamhost this will be served by Passenger (via Apache)
