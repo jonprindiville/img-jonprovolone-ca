@@ -1,15 +1,6 @@
 #!/bin/python
 
-import ConfigParser
-import bottle
-import errno
-import json
-import os
-import re
-import string
-
-from bottle import abort, Bottle, route, run, static_file, template
-from PIL import Image
+import bottle, ConfigParser, errno, json, os, PIL, re, string
 
 
 
@@ -23,7 +14,7 @@ class Site:
     pass
 
 site = Site()
-site.app = Bottle()
+site.app = bottle.Bottle()
 
 site.THIS_PATH = os.path.dirname(os.path.realpath(__file__))
 
@@ -32,9 +23,9 @@ site.images = []
 site.image_pattern = re.compile('\.([Jj][Pp][Ee]?[Gg])|'
     '([Pp][Nn][Gg])|([Gg][Ii][Ff])$')
 site.IMG_PATH = os.path.join(site.THIS_PATH,
-    config.get('site', 'image_dir'), '')
+    config.get('images', 'dir'), '')
 site.THUMB_PATH = os.path.join(site.THIS_PATH,
-    config.get('site', 'thumbnail_cache_dir'), '')
+    config.get('thumbnailing', 'cache_dir'), '')
 
 # Add our templates to bottle's path:
 bottle.TEMPLATE_PATH.insert(0, os.path.join(site.THIS_PATH,
@@ -51,7 +42,7 @@ def refresh_images():
             return
 
         # build a basic dict for this image...
-        ret = {'url': config.get('site', 'image_route') + file}
+        ret = {'url': config.get('images', 'route_raw') + file}
 
         # TODO: pull date from EXIF or mtime
 
@@ -91,45 +82,49 @@ def refresh_images():
 @site.app.route('/n/<n:int>/s/<skip:int>')
 def serve_main(skip=0, n=6):
     refresh_images()
-    return template('image-listing', title=config.get('site', 'title'),
-                    site_title=config.get('site', 'title'),
-                    skip=skip, n=n, end=len(site.images),
-                    images=site.images[skip:skip+n])
+    return bottle.template('image-listing',
+        title=config.get('site', 'title'),
+        site_title=config.get('site', 'title'),
+        skip=skip, n=n, end=len(site.images),
+        images=site.images[skip:skip+n])
+
 
 @site.app.route('/pages/<name>')
 def serve_page(name):
-#    try:
-    page_data = json.load(open(
-        os.path.join(config.get('site', 'page_dir'), '{}.json'.format(name))))
-    return template(page_data.get('template'), data=page_data,
-        site_title=config.get('site', 'title'))
-
-#    except:
-#        abort(404, 'Page "{}" not found'.format(name))
+    try:
+        page_data = json.load(open(
+            os.path.join(config.get('site', 'page_dir'), '{}.json'.format(name))))
+        return bottle.template(page_data.get('template'), data=page_data,
+            site_title=config.get('site', 'title'))
+    except:
+        bottle.abort(404, 'Page "{}" not found'.format(name))
     
 
 @site.app.route('/assets/<file:path>')
-def serve_assets(file):
-    return static_file(file, root=config.get('site', 'asset_dir'))
-
-@site.app.route('{}{}'.format(config.get('site', 'image_route'), '<image>'))
-def static_img(image):
-    return static_file(image, root=site.IMG_PATH)
+def serve_asset(file):
+    return bottle.static_file(file, root=config.get('site', 'asset_dir'))
 
 
-@site.app.route('{}{}'.format(config.get('site', 'image_route'),
+@site.app.route('{}{}'.format(config.get('images', 'route_raw'), '<image>'))
+def serve_static_image(image):
+    return bottle.static_file(image, root=site.IMG_PATH)
+
+
+@site.app.route('{}{}'.format(config.get('images', 'route_raw'),
     '<image>/<spec:re:[1-9][0-9]{0,3}s?>'))
-def thumb_img(spec, image):
+def serve_thumbnail(spec, image):
     
     # Is this request referring to a valid image?
     if not (os.access(os.path.join(site.IMG_PATH, image), os.R_OK)):
-        abort(404, 'File not found')
+        bottle.abort(404, 'File not found')
 
     # Return the cached thumbnail if it exists
     cached_name = '{}-{}'.format(spec, image)
     cached_path = os.path.join(site.THUMB_PATH, cached_name)
     if (os.access(cached_path, os.R_OK)):
-        return static_file(cached_name, root=site.THUMB_PATH)
+        return bottle.static_file(cached_name, root=site.THUMB_PATH)
+
+# TODO: refactor above to use try/except
 
     # If not, we'll try generating the thumbnail...
 
@@ -139,17 +134,17 @@ def thumb_img(spec, image):
 
     # Do we have a cache dir now?
     if not (os.path.isdir(site.THUMB_PATH)):
-        abort(500, 'Cache "{}" not a directory'.format(site.THUMB_PATH))
+        bottle.abort(500, 'Cache "{}" not a directory'.format(site.THUMB_PATH))
 
     # Is it writeable?
     if not (os.access(site.THUMB_PATH, os.W_OK)):
-        abort(500, 'Cache "{}" not writeable'.format(site.THUMB_PATH))
+        bottle.abort(500, 'Cache "{}" not writeable'.format(site.THUMB_PATH))
 
     # Resize according to spec
-    thumb = do_resize(Image.open(os.path.join(site.IMG_PATH, image)), spec)
+    thumb = do_resize(PIL.Image.open(os.path.join(site.IMG_PATH, image)), spec)
     thumb.save(cached_path)
 
-    return static_file(cached_name, root=site.THUMB_PATH)
+    return bottle.static_file(cached_name, root=site.THUMB_PATH)
 
 
 # The 'spec' in the thumbnail route is a 1-to-3 digit positive
@@ -179,7 +174,7 @@ def do_resize(image, spec):
             height = size
             width = int(size * float(o_width) / o_height)
 
-        return image.resize((width, height), Image.ANTIALIAS)
+        return image.resize((width, height), PIL.Image.ANTIALIAS)
 
     # If we did find an 's' in our spec we've got to crop after scaling
     # to make a square
@@ -197,13 +192,12 @@ def do_resize(image, spec):
             box = (int(float(width - size)/2), 0,
                 int(float(width - size)/2) + size, height)
 
-        thumb = image.resize((width, height), Image.ANTIALIAS)
+        thumb = image.resize((width, height), PIL.Image.ANTIALIAS)
         return thumb.crop(box)
     
 
 
 # Debug ###############################################################
 if __name__ == "__main__":
-    print "TEMPLATES@{}".format(bottle.TEMPLATE_PATH)
     site.app.run(host=config.get('debug', 'host'),
         port=config.get('debug', 'port'))
