@@ -8,7 +8,7 @@ import os
 import re
 import string
 
-from bottle import abort, route, run, static_file, template
+from bottle import abort, Bottle, route, run, static_file, template
 from PIL import Image
 
 
@@ -23,6 +23,8 @@ class Site:
     pass
 
 site = Site()
+site.app = Bottle()
+
 site.THIS_PATH = os.path.dirname(os.path.realpath(__file__))
 
 # Images:
@@ -83,10 +85,10 @@ def refresh_images():
 
 # Handlers ############################################################
 
-@route('/')
-@route('/s/<skip:int>')
-@route('/n/<n:int>')
-@route('/n/<n:int>/s/<skip:int>')
+@site.app.route('/')
+@site.app.route('/s/<skip:int>')
+@site.app.route('/n/<n:int>')
+@site.app.route('/n/<n:int>/s/<skip:int>')
 def serve_main(skip=0, n=6):
     refresh_images()
     return template('image-listing', title=config.get('site', 'title'),
@@ -94,7 +96,7 @@ def serve_main(skip=0, n=6):
                     skip=skip, n=n, end=len(site.images),
                     images=site.images[skip:skip+n])
 
-@route('/pages/<name>')
+@site.app.route('/pages/<name>')
 def serve_page(name):
 #    try:
     page_data = json.load(open(
@@ -106,16 +108,16 @@ def serve_page(name):
 #        abort(404, 'Page "{}" not found'.format(name))
     
 
-@route('/assets/<file:path>')
+@site.app.route('/assets/<file:path>')
 def serve_assets(file):
     return static_file(file, root=config.get('site', 'asset_dir'))
 
-@route('{}{}'.format(config.get('site', 'image_route'), '<image>'))
+@site.app.route('{}{}'.format(config.get('site', 'image_route'), '<image>'))
 def static_img(image):
     return static_file(image, root=site.IMG_PATH)
 
 
-@route('{}{}'.format(config.get('site', 'image_route'),
+@site.app.route('{}{}'.format(config.get('site', 'image_route'),
     '<image>/<spec:re:[1-9][0-9]{0,3}s?>'))
 def thumb_img(spec, image):
     
@@ -151,13 +153,19 @@ def thumb_img(spec, image):
 
 
 # The 'spec' in the thumbnail route is a 1-to-3 digit positive
-# integer interpreted as the maximum dimension (height or width) of the
+# integer interpreted as the maximum dimension (height OR width) of the
 # desired image. The aspect ratio of the image will be maintained.
 # If there is an 's' trailing the size in pixels the thumbnail will be
-# square -- having been scaled such that its smaller dimension matches
+# square -- having been scaled such that its SMALLER dimension matches
 # the one given in the URL and then cropped in the other dimension.
+#
+# e.g. beginning with a 500px by 1000px image, spec="200" will get you
+# a 100px by 200px image. Applying spec="200s" to the same file will
+# first scale the image to 200px by 400px and then crop the edges off
+# to obtain a 200px square.
 def do_resize(image, spec):
 
+    # original sizes
     o_width, o_height = image.size
 
     # If we don't find an 's' in our spec we simply scale the image.
@@ -195,5 +203,7 @@ def do_resize(image, spec):
 
 
 # Debug ###############################################################
-print "TEMPLATES@{}".format(bottle.TEMPLATE_PATH)
-run(host=config.get('debug', 'host'), port=config.get('debug', 'port'))
+if __name__ == "__main__":
+    print "TEMPLATES@{}".format(bottle.TEMPLATE_PATH)
+    site.app.run(host=config.get('debug', 'host'),
+        port=config.get('debug', 'port'))
