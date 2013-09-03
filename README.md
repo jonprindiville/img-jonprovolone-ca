@@ -3,7 +3,7 @@
 [pillow]: http://python-imaging.github.io/
 
 [img.jonprovolone.ca][i.jp.ca]
-=====++++==================
+==============================
 A simple [bottle][bottle]-based webapp (which will be) deployed on my personal
 site, [img.jonprovolone.ca][i.jp.ca]. It does some image-thumbnailing and some
 basic templating of pages.
