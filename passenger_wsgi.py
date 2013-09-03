@@ -11,5 +11,5 @@ if sys.executable != INTERP:
     os.execl(INTERP, INTERP, *sys.argv)
 
 # this module is in the same directory as passenger_wsgi
-import jonprovolone
-application = jonprovolone.site.app
+import ijpca
+application = ijpca.site.app
