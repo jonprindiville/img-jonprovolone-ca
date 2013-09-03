@@ -15,17 +15,28 @@ body {
     max-width: 480px;
 }
 
+body a:link,
+body a:hover,
+body a:active {
+    color: #f0f0f0;
+}
+
+body a:hover {
+    text-decoration: none;
+}
+
+body a:visited {
+    color: #a0a0a0;
+}
+
 header {
     border-top: 3px solid white;
     padding: 1em 0 1em;
-    font-family: "Roboto";
+    font-family: "Roboto", sans-serif;
     width: 100%;
 }
 
-
-.site-name,
-.section-name,
-.nav {
+header > * {
     display: inline-block;
 }
 
@@ -36,20 +47,30 @@ header {
 }
 
 .section-name,
+.pages,
 .nav {
     font-size: 125%;
     font-weight: 300;
     padding-left: 2em;
 }
 
-.nav a:link,
-.nav a:hover,
-.nav a:active,
-.nav a:visited {
+.nav {
+    font-weight: 100;
+}
+
+header a:link,
+header a:hover,
+header a:active,
+header a:visited {
     text-decoration: none;
     color: #f0f0f0;
 }
 
+.pages + .nav:before {
+    content: '/';
+}
+
+.pages a+a,
 .nav a+a {
     padding-left: 1em;
 }
@@ -59,8 +80,8 @@ header {
     border-top: 1px solid white;
     max-width: 480px;
     font-size: 1.25em;
-    font-family: "Merriweather";
-    font-weight: 400;    
+    font-family: "Merriweather", serif;
+    font-weight: 400;
 }
 
 .main p {
@@ -73,7 +94,7 @@ header {
 }
 
 .article-name {
-    font-family: "Roboto";
+    font-family: "Roboto", sans-serif;
     font-weight: 500;
     font-size: 150%;
 }

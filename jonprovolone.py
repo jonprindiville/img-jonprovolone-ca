@@ -1,7 +1,14 @@
 #!/bin/python
 
-import bottle, ConfigParser, errno, json, os, PIL, re, string
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# Copyright 2013, Jon Prindiville
 
+import bottle, ConfigParser, datetime, errno, json, os, re, string
+from PIL import Image
+
+EXIF_DATETIME = 36867 
 
 
 # Some initialization #################################################
@@ -41,10 +48,23 @@ def refresh_images():
         if not re.search(site.image_pattern, file):
             return
 
+        filepath = os.path.join(site.IMG_PATH, file)
+
         # build a basic dict for this image...
         ret = {'url': config.get('images', 'route_raw') + file}
 
-        # TODO: pull date from EXIF or mtime
+        # Try pulling date from EXIF (failing that, mtime)
+        try:
+            d = Image.open(filepath)._getexif().get(EXIF_DATETIME)
+            ret.update({'date': datetime.datetime.
+                strptime(d.split(' ')[0], '%Y:%m:%d').strftime('%Y-%m-%d') })
+        except:
+            try:
+                ret.update({'date': datetime.date.fromtimestamp(
+                    os.stat(filepath).st_mtime).strftime('%Y-%m-%d')})
+            except:
+                # EXIF and mtime failed, oh well
+                pass
 
         # see if there is any extra metadata in a json file of the 
         # same basename and incorporate it in our return value...
@@ -53,23 +73,23 @@ def refresh_images():
         try:
             meta_file = open(meta_path)
         except IOError as e:
-            if e.errno == errno.ENOENT:
-                # No extra metadata, carry on
-                return ret
-            if e.errno == errno.EACCESS:
-                # Permission or other access error
-                print 'Cannot access metadata at {}'.format(meta_path)
-                return ret
-            raise
+#TODO: error logging
+            pass
         else:
             with meta_file:
                 meta_json = json.load(meta_file)
                 meta_json.update(ret)
                 return meta_json
 
+        # return what we've got
+        return ret
+
     # ls the directory of images, building a list of dicts
     site.images = [i for i in \
         map(_image_dict, os.listdir(site.IMG_PATH)) if i is not None];
+
+    # Sorted descending by date
+    site.images.sort(reverse=True, key=lambda im: im.get('date'))
     print 'Refreshing image list: [{}]'.format(', '.join(map(str, site.images)))
 
 
@@ -83,8 +103,8 @@ def refresh_images():
 def serve_main(skip=0, n=6):
     refresh_images()
     return bottle.template('image-listing',
-        title=config.get('site', 'title'),
         site_title=config.get('site', 'title'),
+        title=config.get('site', 'title'),
         skip=skip, n=n, end=len(site.images),
         images=site.images[skip:skip+n])
 
@@ -141,7 +161,7 @@ def serve_thumbnail(spec, image):
         bottle.abort(500, 'Cache "{}" not writeable'.format(site.THUMB_PATH))
 
     # Resize according to spec
-    thumb = do_resize(PIL.Image.open(os.path.join(site.IMG_PATH, image)), spec)
+    thumb = do_resize(Image.open(os.path.join(site.IMG_PATH, image)), spec)
     thumb.save(cached_path)
 
     return bottle.static_file(cached_name, root=site.THUMB_PATH)
@@ -174,7 +194,7 @@ def do_resize(image, spec):
             height = size
             width = int(size * float(o_width) / o_height)
 
-        return image.resize((width, height), PIL.Image.ANTIALIAS)
+        return image.resize((width, height), Image.ANTIALIAS)
 
     # If we did find an 's' in our spec we've got to crop after scaling
     # to make a square
@@ -192,7 +212,7 @@ def do_resize(image, spec):
             box = (int(float(width - size)/2), 0,
                 int(float(width - size)/2) + size, height)
 
-        thumb = image.resize((width, height), PIL.Image.ANTIALIAS)
+        thumb = image.resize((width, height), Image.ANTIALIAS)
         return thumb.crop(box)
     
 
