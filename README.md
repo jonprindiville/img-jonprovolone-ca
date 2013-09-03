@@ -1,23 +1,20 @@
-[jpro]: http://jonprovolone.ca
+[i.jp.ca]: http://img.jonprovolone.ca
 [bottle]: http://bottlepy.org/
 [pillow]: http://python-imaging.github.io/
 
-[jonprovolone.ca][jpro]
-=======================
+[img.jonprovolone.ca][i.jp.ca]
+=====++++==================
 A simple [bottle][bottle]-based webapp (which will be) deployed on my personal
-site, [jonprovolone.ca][jpro]. It does some image-thumbnailing and some
-templating of pages / blog-posts.
+site, [img.jonprovolone.ca][i.jp.ca]. It does some image-thumbnailing and some
+basic templating of pages.
 
 TODO
 ----
+- Specify width or height restrictions independantly for thumbs
 - Restrict the thumbnailing to some subset of possible sizes (also, no enlarging)
 - thumbnail cache aging/eviction
 - locking for thumbnail writing? (passenger spawns multiple processes? not sure for wsgi -- it does for ruby)
-- Pull image date from EXIF/filesystem if not in JSON
-- Sort images by something
 - Thumbnail caching to play nice with HTTP caching 
-- Describe this
-- posts/ handling
 
 Installation
 ------------
