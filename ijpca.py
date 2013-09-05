@@ -175,7 +175,7 @@ def serve_static_image(image):
 
 
 @site.app.route('{}{}'.format(site.config.get('images', 'route_raw'),
-    '<image>/<spec:re:[1-9][0-9]{0,3}s?>'))
+    '<image>/<spec:re:[1-9][0-9]*(s|h|w)?>'))
 def serve_thumbnail(spec, image):
     
     # Is this request referring to a valid image?
@@ -211,54 +211,71 @@ def serve_thumbnail(spec, image):
     return bottle.static_file(cached_name, root=site.THUMB_PATH)
 
 
-# The 'spec' in the thumbnail route is a 1-to-3 digit positive
-# integer interpreted as the maximum dimension (height OR width) of the
-# desired image. The aspect ratio of the image will be maintained.
-# If there is an 's' trailing the size in pixels the thumbnail will be
-# square -- having been scaled such that its SMALLER dimension matches
-# the one given in the URL and then cropped in the other dimension.
+# The 'spec' in the thumbnail route is a 1+ digit unsigned integer
+# followed (optionally) by an 's', 'h', or 'w'.
 #
-# e.g. beginning with a 500px by 1000px image, spec="200" will get you
-# a 100px by 200px image. Applying spec="200s" to the same file will
-# first scale the image to 200px by 400px and then crop the edges off
-# to obtain a 200px square.
+# The integer is interpreted as the maximum dimension of the desired image.
+# The aspect ratio of the image will be maintained.
+#
+# 's': create a square image. Scale such that the image's SMALLER
+# dimension matches the one given in the URL and then crop in the other
+# dimension to obtain a square.
+#
+# 'h': The dimension in the URL is the maximum height
+#
+# 'w': The dimension in the URL is the maximum width
+#
+# no letter: The dimension in the URL is the maximum of either dimension
+# (preserve aspect ratio)
 def do_resize(image, spec):
 
     # original sizes
     o_width, o_height = image.size
 
-    # If we don't find an 's' in our spec we simply scale the image.
-    if (string.find(spec, 's') == -1):
-        size = int(spec)
-        # The LARGER dimension should be scaled to size
-        if (o_width > o_height):
-            width = size
-            height = int(size * float(o_height) / o_width)
-        else:
-            height = size
-            width = int(size * float(o_width) / o_height)
+    # requested dimension as int
+    new_size = int(spec.translate(string.maketrans('hsw', '   ')))
 
+    if (new_size >= o_width) and (new_size >= o_height):
+        bottle.abort(400, 'No enlarging of images permitted')
+
+    def _resize_w(image, size):
+        width = size
+        height = int(size * float(o_height) / o_width)
         return image.resize((width, height), Image.ANTIALIAS)
 
-    # If we did find an 's' in our spec we've got to crop after scaling
-    # to make a square
-    else:
-        size = int(spec[:-1])
-        # The SMALLER dimension should be scaled to size
-        if (o_width < o_height):
-            width = size
-            height = int(size * float(o_height) / o_width)
-            box = (0, int(float(height - size)/2),
-                width, int(float(height - size)/2) + size)
-        else:
-            height = size
-            width = int(size * float(o_width) / o_height)
-            box = (int(float(width - size)/2), 0,
-                int(float(width - size)/2) + size, height)
+    def _resize_h(image, size):
+        height = size
+        width = int(size * float(o_width) / o_height)
+        return image.resize((width, height), Image.ANTIALIAS)
 
-        thumb = image.resize((width, height), Image.ANTIALIAS)
+    # height was specified
+    if (string.find(spec, 'h') != -1):
+        return _resize_h(image, new_size)
+
+    # weight was specified
+    if (string.find(spec, 'w') != -1):
+        return _resize_w(image, new_size)
+
+    # square! scale the smaller dimension to the appropriate size
+    # and then crop
+    if (string.find(spec, 's') != -1):
+        if (o_width < o_height):
+            thumb = _resize_w(image, new_size)
+            w, h = thumb.size
+            box = (0, int(float(h - new_size)/2),
+                w, int(float(h - new_size)/2) + new_size)
+        else:
+            thumb = _resize_h(image, new_size)
+            w, h = thumb.size
+            box = (int(float(w - new_size)/2), 0,
+                int(float(w - new_size)/2) + new_size, h)
+
         return thumb.crop(box)
-    
+
+    # must not have specified, choose larger dimension
+    return _resize_w(image, new_size) if (o_width > o_height) else \
+        _resize_h(image, new_size)
+
 
 
 # Debug ###############################################################
