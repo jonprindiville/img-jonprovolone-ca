@@ -39,7 +39,13 @@ class Site:
     # if our image list is greater than refreshold seconds old (or if it
     # does not exist yet) we will refresh it before returning it --
     # otherwise skip the refresh, return the data we have
-    def images(self, refreshold=600):
+    def images(self, refreshold=None):
+
+        # use configured value for refreshold if none given
+        if not refreshold:
+            refreshold = self.config.getint('images', 'refresh')
+
+        # check age...
         try:
             age = (datetime.datetime.now() -
                 self._images_timestamp).total_seconds()
@@ -69,7 +75,7 @@ class Site:
         self._images_timestamp = datetime.datetime.now()
 
         # given a file name, make a dict of that image's metadata for
-        # our images list (this is used in the map() call above)
+        # our images list (this is used in the map() call below)
         def _make_image_dict(file):
 
             # skip this file if it does not look like an image

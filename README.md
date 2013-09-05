@@ -11,8 +11,7 @@ basic templating of pages.
 TODO
 ----
 - configurable image dir refresh time
-- Specify width or height restrictions independantly for thumbs
-- Restrict the thumbnailing to some subset of possible sizes (also, no enlarging)
+- Restrict the thumbnailing to some subset of possible sizes
 - thumbnail cache aging/eviction
 - locking for thumbnail writing? (passenger spawns multiple processes? not sure for wsgi -- it does for ruby)
 - Thumbnail caching to play nice with HTTP caching 
