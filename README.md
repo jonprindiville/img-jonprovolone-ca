@@ -10,6 +10,7 @@ basic templating of pages.
 
 TODO
 ----
+- configurable image dir refresh time
 - Specify width or height restrictions independantly for thumbs
 - Restrict the thumbnailing to some subset of possible sizes (also, no enlarging)
 - thumbnail cache aging/eviction

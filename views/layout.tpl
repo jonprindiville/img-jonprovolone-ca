@@ -3,7 +3,9 @@
 <head>
     <title>{{site_title}}{{"" if (site_title == title) else " - {}".format(title)}}</title>
     <link href='http://fonts.googleapis.com/css?family=Merriweather:400,700italic|Roboto:500,300,400italic,100' rel='stylesheet' type='text/css' />
+    <link href='/assets/normalize.css' rel='stylesheet' type='text/css' />
     <link href='/assets/basic.css' rel='stylesheet' type='text/css' />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
     <header>
