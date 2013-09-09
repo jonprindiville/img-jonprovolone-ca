@@ -1,18 +1,11 @@
-* { 
+p {
     margin: 0;
     padding: 0;
 }
 
-h3 {
-    font-size: 1em;
-}
-
 body {
-    margin: 32px;
     background: #111111;
     color: #f0f0f0;
-    line-height: 1.4;
-    max-width: 480px;
 }
 
 body a:link,
@@ -29,15 +22,29 @@ body a:visited {
     color: #a0a0a0;
 }
 
-header {
-    border-top: 3px solid white;
-    padding: 1em 0 1em;
-    font-family: "Roboto", sans-serif;
-    width: 100%;
+header a:link,
+header a:hover,
+header a:active,
+header a:visited {
+    text-decoration: none;
+    color: #f0f0f0;
 }
 
-header > * {
-    display: inline-block;
+.pages + .nav:before {
+    content: '/';
+}
+
+.pages {
+    padding-left: 1em;
+}
+
+.nav {
+    padding-left: 2em;
+}
+
+header {
+    border-top: 3px solid white;
+    font-family: "Roboto", sans-serif;
 }
 
 .site-name {
@@ -51,46 +58,25 @@ header > * {
 .nav {
     font-size: 125%;
     font-weight: 300;
-    padding-left: 2em;
 }
 
 .nav {
     font-weight: 100;
 }
-
-header a:link,
-header a:hover,
-header a:active,
-header a:visited {
-    text-decoration: none;
-    color: #f0f0f0;
-}
-
-.pages + .nav:before {
-    content: '/';
-}
-
-.pages a+a,
-.nav a+a {
-    padding-left: 1em;
-}
-
 .main {
-    padding-top: 1em;
     border-top: 1px solid white;
-    max-width: 480px;
     font-size: 1.25em;
     font-family: "Merriweather", serif;
     font-weight: 400;
 }
 
-.main p {
-    margin-top: 1em;
+article {
+    max-width: 30em;
+    line-height: 1.4;
 }
 
-.main img {
-    margin-left: 4px;
-    margin-bottom: 3px;
+article p {
+    margin-top: 1em;
 }
 
 .article-name {
@@ -99,3 +85,73 @@ header a:visited {
     font-size: 150%;
 }
 
+header, .main {
+    padding: 0.5em; 
+}
+
+/** 0 -> 320px *******************************************************/
+@media all and (max-width: 320px) {
+
+    body {
+        width: 100%;
+        max-width: 300px;
+        margin-top: 0.5em;
+    }
+    
+    .main img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        margin-top: 0.5em;
+        width: 250px;
+        height: 250px;
+    }
+}
+
+/** 321px -> 480px ***************************************************/
+@media all and (min-width: 321px) and (max-width: 480px) {
+    body {
+        margin-top: 1em;
+    }
+}
+
+/** 481px -> 768px ***************************************************/
+@media all and (min-width: 481px) and (max-width: 768px) {
+    body {
+        margin-top: 3em;
+        margin-left: 5%;
+        margin-right: 5%;
+    }
+
+}
+
+/** 769px+ ***********************************************************/
+@media all and (min-width: 769px) {
+    body {
+        margin-top: 5em;
+        margin-left: 10%;
+        margin-right: 10%;
+    }
+}
+
+/** 321px+ ***********************************************************/
+@media all and (min-width: 321px) {
+    header {
+        font-size: 120%;
+    }
+    
+    .main img {
+        margin: 0.5em;
+    }
+}
+
+/** 481px+ ***********************************************************/
+@media all and (min-width: 481px) {
+    body {
+        max-width: 700px;
+    }
+
+    header > * {
+        display: inline-block;
+    }
+}

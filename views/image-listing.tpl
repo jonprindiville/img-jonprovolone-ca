@@ -11,7 +11,7 @@
 %end \\ 
 %for image in images:
     %if image is not None:
-        <a href='{{image['url']}}'><img src='{{image['url']}}/232s' alt='{{image.get('name', '')}}' /></a>
+        <a href='{{image['url']}}'><img src='{{image['url']}}/200s' alt='{{image.get('name', '')}}' /></a>
     %end \\
 %end \\
 <!-- /image-listing -->
