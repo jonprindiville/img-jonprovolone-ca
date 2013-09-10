@@ -4,16 +4,18 @@
 
 [img.jonprovolone.ca][i.jp.ca]
 ==============================
-A simple [bottle][bottle]-based webapp (which will be) deployed on my personal
+A simple [bottle][bottle]-based webapp deployed on my personal
 site, [img.jonprovolone.ca][i.jp.ca]. It does some image-thumbnailing and some
 basic templating of pages.
 
 TODO
 ----
+- js loading of more images
+- log rotation
 - configurable image dir refresh time
 - Restrict the thumbnailing to some subset of possible sizes
 - thumbnail cache aging/eviction
-- locking for thumbnail writing? (passenger spawns multiple processes? not sure for wsgi -- it does for ruby)
+- locking for thumbnail writing? (passenger spawns multiple processes)
 - Thumbnail caching to play nice with HTTP caching 
 
 Installation
@@ -27,5 +29,5 @@ Requirements:
 
 Running
 -------
-Executing jonprovolone.py will currently use bottle's built-in server. On
+Executing ijpca.py will currently use bottle's built-in server. On
 Dreamhost this will be served by Passenger via Apache.

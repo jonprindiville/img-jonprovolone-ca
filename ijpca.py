@@ -6,7 +6,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import bottle, ConfigParser, datetime, errno, json, os, re, string
+import bottle, ConfigParser, datetime, errno, json, logging, os, re, string
 from PIL import Image
 
 
@@ -29,12 +29,52 @@ class Site:
         self.config = ConfigParser.ConfigParser()
         self.config.readfp(open(cfg_file))
 
-        self.THIS_PATH = os.path.dirname(os.path.realpath(__file__))
+        if self.config.has_section('logging'):
+            try:
+                loglevel = self.config.get('logging', 'level').upper()
+            except:
+                loglevel = 'INFO' # default setting
+                print 'No log level set, using {}'.format(loglevel)
+
+            try:
+                logfile = self.config.get('logging', 'file')
+            except:
+                logfile = None
+                print 'No log file set, logging to console'
+
+            logging.basicConfig(filename=logfile, level=loglevel,
+                format='%(asctime)s|%(levelname)s|%(process)d|%(message)s')
+            self.log = logging.getLogger()
+
+        else:
+            print 'No "[logging]" section found in "{}", logging disabled'.format(cfg_file)
+            self.log = False
+
+        self.THIS_PATH = os.getcwd()
         self.IMG_PATH = os.path.join(self.THIS_PATH,
             self.config.get('images', 'dir'), '')
         self.THUMB_PATH = os.path.join(self.THIS_PATH,
             self.config.get('thumbnailing', 'cache_dir'), '')
 
+    def debug(self, msg):
+        if self.log:
+            self.log.debug(msg)
+
+    def info(self, msg):
+        if self.log:
+            self.log.info(msg)
+
+    def warn(self, msg):
+        if self.log:
+            self.log.warn(msg)
+
+    def error(self, msg):
+        if self.log:
+            self.log.error(msg)
+
+    def critical(self, msg):
+        if self.log:
+            self.log.critical(msg)
 
     # if our image list is greater than refreshold seconds old (or if it
     # does not exist yet) we will refresh it before returning it --
@@ -61,9 +101,9 @@ class Site:
             pass #and hit the refresh call below
 
         try:
-            print "Image list is {} seconds old, refreshing...".format(age)
+            self.info("Image list is {} seconds old, refreshing...".format(age))
         except NameError:
-            print "Image list being generated for the first time.."
+            self.info("Image list being generated for the first time...")
         self._refresh_image_list()
         return self._images
 
@@ -112,9 +152,12 @@ class Site:
                 pass
             else:
                 with meta_file:
-                    meta_json = json.load(meta_file)
-                    meta_json.update(ret)
-                    return meta_json
+                    try:
+                        meta_json = json.load(meta_file)
+                        meta_json.update(ret)
+                        return meta_json
+                    except Exception as e:
+                        self.info('Error reading metadata from "{}": {}'.format(meta_path, e))
 
             # return what we've accumulated
             return ret
@@ -127,7 +170,9 @@ class Site:
         # Sorted descending by date
         self._images.sort(reverse=True, key=lambda im: im.get('date'))
 
-        print 'Refreshed image list: [{}]'.format(', '.join(map(str, self._images)))
+#        print 'Refreshed image list: [{}]'.format(', '.join(map(str, self._images)))
+        self.info('Refreshed image list')
+        self.debug('Image list: [{}]'.format(', '.join(map(str, self._images))))
 
 
 
@@ -147,7 +192,7 @@ bottle.TEMPLATE_PATH.insert(0, os.path.join(site.THIS_PATH,
 @site.app.route('/s/<skip:int>')
 @site.app.route('/n/<n:int>')
 @site.app.route('/n/<n:int>/s/<skip:int>')
-def serve_main(skip=0, n=6):
+def serve_main(skip=0, n=8):
     return bottle.template('image-listing',
         site_title=site.config.get('site', 'title'),
         title=site.config.get('site', 'title'),
@@ -164,7 +209,8 @@ def serve_page(name):
 
         return bottle.template(page_data.get('template'), data=page_data,
             site_title=site.config.get('site', 'title'))
-    except:
+    except Error as e:
+        site.error('Error while rendering "{}": {}'.format(name, e.strerror));
         bottle.abort(404, 'Page "{}" not found'.format(name))
     
 
@@ -186,6 +232,7 @@ def serve_thumbnail(spec, image):
     
     # Is this request referring to a valid image?
     if not (os.access(os.path.join(site.IMG_PATH, image), os.R_OK)):
+        site.error('Error serving thumbnail "{}": file unreadable'.format(image))
         bottle.abort(404, 'File not found')
 
     # Return the cached thumbnail if it exists
@@ -204,11 +251,15 @@ def serve_thumbnail(spec, image):
 
     # Do we have a cache dir now?
     if not (os.path.isdir(site.THUMB_PATH)):
-        bottle.abort(500, 'Cache "{}" not a directory'.format(site.THUMB_PATH))
+        err = 'Cache "{}" not a directory'.format(site.THUMB_PATH)
+        site.error(err)
+        bottle.abort(500, err)
 
     # Is it writeable?
     if not (os.access(site.THUMB_PATH, os.W_OK)):
-        bottle.abort(500, 'Cache "{}" not writeable'.format(site.THUMB_PATH))
+        err = 'Cache "{}" not writeable'.format(site.THUMB_PATH)
+        site.error(err)
+        bottle.abort(500, err)
 
     # Resize according to spec
     thumb = do_resize(Image.open(os.path.join(site.IMG_PATH, image)), spec)
@@ -242,7 +293,9 @@ def do_resize(image, spec):
     new_size = int(spec.translate(string.maketrans('hsw', '   ')))
 
     if (new_size >= o_width) and (new_size >= o_height):
-        bottle.abort(400, 'No enlarging of images permitted')
+        err = 'Resized images must be smaller than original'
+        site.error(err)
+        bottle.abort(400, err)
 
     def _resize_w(image, size):
         width = size
