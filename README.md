@@ -10,6 +10,8 @@ basic templating of pages.
 
 TODO
 ----
+- images listed by tag
+- pull tags from EXIF
 - js loading of more images
 - log rotation
 - configurable image dir refresh time

@@ -193,11 +193,16 @@ bottle.TEMPLATE_PATH.insert(0, os.path.join(site.THIS_PATH,
 @site.app.route('/n/<n:int>')
 @site.app.route('/n/<n:int>/s/<skip:int>')
 def serve_main(skip=0, n=8):
-    return bottle.template('image-listing',
-        site_title=site.config.get('site', 'title'),
-        title=site.config.get('site', 'title'),
-        skip=skip, n=n, end=len(site.images()),
-        images=site.images()[skip:skip+n])
+    if bottle.request.query.fmt == 'json':
+        ret = {'skip': skip, 'n': n,
+            'images': site.images()[skip:skip+n]}
+        return json.dumps(ret)
+    else:
+        return bottle.template('image-listing',
+            site_title=site.config.get('site', 'title'),
+            title=site.config.get('site', 'title'),
+            skip=skip, n=n, end=len(site.images()),
+            images=site.images()[skip:skip+n])
 #TODO: pass site to templates... simplify, man
 
 @site.app.route('/pages/<name>')
@@ -293,9 +298,7 @@ def do_resize(image, spec):
     new_size = int(spec.translate(string.maketrans('hsw', '   ')))
 
     if (new_size >= o_width) and (new_size >= o_height):
-        err = 'Resized images must be smaller than original'
-        site.error(err)
-        bottle.abort(400, err)
+        return image
 
     def _resize_w(image, size):
         width = size
