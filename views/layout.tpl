@@ -20,6 +20,9 @@
     <section class='main'>
 %include
     </section>
+%if defined('scripts'):
+    %scripts()
+%end
 </body>
 %import os
 <!-- pid {{os.getpid()}} -->
