@@ -11,8 +11,10 @@ basic templating of pages.
 TODO
 ----
 - images listed by tag
+- image detail page (several size links, EXIF data, tags, comments)
 - pull tags from EXIF
-- js loading of more images
+- js-load newer (not just older) images
+- update 'next'/'prev' links while js-loading more images
 - log rotation
 - configurable image dir refresh time
 - Restrict the thumbnailing to some subset of possible sizes
