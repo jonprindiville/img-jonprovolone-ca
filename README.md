@@ -10,6 +10,7 @@ basic templating of pages.
 
 TODO
 ----
+- trigger loading on click of whole box, not just 'more' text
 - images listed by tag
 - image detail page (several size links, EXIF data, tags, comments)
 - pull tags from EXIF
