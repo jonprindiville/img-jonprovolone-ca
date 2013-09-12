@@ -6,7 +6,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import bottle, ConfigParser, datetime, errno, json, logging, os, re, string
+import bottle, ConfigParser, datetime, errno, json, logging, os, re, shlex, string
 from PIL import Image
 
 
@@ -19,42 +19,70 @@ IMAGE_PATTERN = re.compile('\.([Jj][Pp][Ee]?[Gg])|'
 
 class Site:
 
-    def __init__(self, cfg_file='site.cfg'):
+    def __init__(self, cfg_file='default.cfg'):
 
         self.app = bottle.Bottle()
         
+        # Image metadata
         self._images = []
         self._images_timestamp = None
         
+        # Load config
         self.config = ConfigParser.ConfigParser()
-        self.config.readfp(open(cfg_file))
+        try:
+            print 'Initializing...\nReading default configuration data...'
 
-        if self.config.has_section('logging'):
+            with open(cfg_file) as cfg:
+                self.config.readfp(cfg)
+            
             try:
-                loglevel = self.config.get('logging', 'level').upper()
-            except:
-                loglevel = 'INFO' # default setting
-                print 'No log level set, using {}'.format(loglevel)
+                cfg_files = shlex.split(self.config.get('config', 'more'))
+                print 'Reading additional config ({})...'.format(cfg_files)
+                self.config.read(cfg_files)
+            except ConfigParser.NoOptionError:
+                pass # No additional config to read
 
-            try:
-                logfile = self.config.get('logging', 'file')
-            except:
-                logfile = None
-                print 'No log file set, logging to console'
 
-            logging.basicConfig(filename=logfile, level=loglevel,
-                format='%(asctime)s|%(levelname)s|%(process)d|%(message)s')
-            self.log = logging.getLogger()
+        except IOError:
+            print 'Error reading default config from {}'.format(cfg_file)
 
-        else:
-            print 'No "[logging]" section found in "{}", logging disabled'.format(cfg_file)
-            self.log = False
+        # Initialize logging
+        self.log = False
+        try:
+            if self.config.getboolean('logging', 'enable'):
+                try:
+                    loglevel = self.config.get('logging', 'level').upper()
+                except ConfigParser.NoOptionError:
+                    loglevel = 'NOTSET'
+                
+                try:
+                    logfile = self.config.get('logging', 'file')
+                except ConfigParser.NoOptionError:
+                    logfile = None
 
+                logging.basicConfig(filename=logfile, level=loglevel,
+                    format='%(asctime)s|%(levelname)s|%(process)d|%(message)s')
+                self.log = logging.getLogger()
+
+                print 'Logging to {} at level "{}"'.format(
+                    'console' if (logfile == None) else '"{}"'.format(logfile),
+                    loglevel)
+
+            else:
+                print 'Logging disabled'
+
+        except ConfigParser.NoSectionError:
+            print 'No "[logging]" section found in config, logging disabled'
+           
+        # Set up some paths
         self.THIS_PATH = os.getcwd()
         self.IMG_PATH = os.path.join(self.THIS_PATH,
             self.config.get('images', 'dir'), '')
         self.THUMB_PATH = os.path.join(self.THIS_PATH,
             self.config.get('thumbnailing', 'cache_dir'), '')
+
+        print 'Init complete.'
+
 
     def debug(self, msg):
         if self.log:
@@ -145,6 +173,8 @@ class Site:
             # same basename and incorporate it in our return value...
             base, ext = os.path.splitext(self.IMG_PATH + file)
             meta_path = base + '.json'
+            # TODO: Sort this out. Find out which errors json.load and
+            # .update may raise and then refactor
             try:
                 meta_file = open(meta_path)
             except IOError as e:
