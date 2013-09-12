@@ -6,7 +6,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import bottle, ConfigParser, datetime, errno, json, logging, os, re, shlex, string
+import bottle, ConfigParser, datetime, errno, fcntl, json, logging, os, re, shlex, string, tempfile
 from PIL import Image
 
 
@@ -21,30 +21,31 @@ class Site:
 
     def __init__(self, cfg_file='default.cfg'):
 
+        pid = os.getpid()
+
         self.app = bottle.Bottle()
         
         # Image metadata
-        self._images = []
-        self._images_timestamp = None
+        self._images = {'timestamp': None, 'data': []}
         
         # Load config
         self.config = ConfigParser.ConfigParser()
         try:
-            print 'Initializing...\nReading default configuration data...'
+            print '{}|Initializing. Reading default configuration data...'.format(pid)
 
             with open(cfg_file) as cfg:
                 self.config.readfp(cfg)
             
             try:
                 cfg_files = shlex.split(self.config.get('config', 'more'))
-                print 'Reading additional config ({})...'.format(cfg_files)
+                print '{}|Reading additional config ({})...'.format(pid, cfg_files)
                 self.config.read(cfg_files)
             except ConfigParser.NoOptionError:
                 pass # No additional config to read
 
 
         except IOError:
-            print 'Error reading default config from {}'.format(cfg_file)
+            print '{}|Error reading default config from {}'.format(pid, cfg_file)
 
         # Initialize logging
         self.log = False
@@ -64,45 +65,112 @@ class Site:
                     format='%(asctime)s|%(levelname)s|%(process)d|%(message)s')
                 self.log = logging.getLogger()
 
-                print 'Logging to {} at level "{}"'.format(
+                print '{}|Logging to {} at level "{}"'.format(pid,
                     'console' if (logfile == None) else '"{}"'.format(logfile),
                     loglevel)
 
             else:
-                print 'Logging disabled'
+                print '{}|Logging disabled'.format(pid);
 
         except ConfigParser.NoSectionError:
-            print 'No "[logging]" section found in config, logging disabled'
+            print '{}|No "[logging]" section found in config, logging disabled'.format(pid)
            
         # Set up some paths
         self.THIS_PATH = os.getcwd()
         self.IMG_PATH = os.path.join(self.THIS_PATH,
             self.config.get('images', 'dir'), '')
-        self.THUMB_PATH = os.path.join(self.THIS_PATH,
-            self.config.get('thumbnailing', 'cache_dir'), '')
+        self.CACHE_PATH = os.path.join(self.THIS_PATH,
+            self.config.get('site', 'cache_dir'), '')
 
-        print 'Init complete.'
+        self.IS_UPDATER = self.am_i_the_updater()
+        
+        print '{}|Init complete. I am {}the updater process'.format(
+            pid, '' if self.IS_UPDATER else 'not ')
+
+
+    # Decide if this process should act as updater or not. If there
+    # are multiple copies of this app running we only want one to
+    # be acting as the updater.
+    def am_i_the_updater(self):
+
+        we_are = False
+
+        # helper for below...
+        def _open_pidfile(mode):
+            return open(os.path.join(self.CACHE_PATH,
+                self.config.get('cache_metadata', 'pidfile')), mode)
+
+        # Open the pidfile for reading if it already exists...
+        try:
+            with _open_pidfile('r+') as pidfile:
+                fcntl.lockf(pidfile, fcntl.LOCK_EX) # blocks waiting for lock
+
+                try:
+                    # see if this pid is active
+                    os.kill(int(pidfile.read()), 0)
+                except (ValueError, OSError):
+                    # non-integer read from file or pid no longer running
+                    # so rewind the file and write our own pid in there
+                    pidfile.seek(0)
+                    pidfile.write(str(os.getpid()))
+                    we_are = True
+                else:
+                    # pid still active, we're not the updater
+                    pass
+
+                fcntl.lockf(pidfile, fcntl.LOCK_UN) # release
+                return we_are
+
+        except IOError as e:
+            self.info('Error opening updater pidfile for reading: {}'.format(e))
+
+        # ... or for writing if that fails
+        try:
+            with _open_pidfile('w+') as pidfile:
+                try:
+                    fcntl.lockf(pidfile, fcntl.LOCK_EX|fcntl.LOCK_NB) # don't block
+                except IOError:
+                    # someone else has the lock, we'll back off
+                    pass
+                else:
+                    # we got the lock, we are the updater
+                    pidfile.write(os.getpid())
+                    we_are = True
+                    fcntl.lockf(pidfile, fcntl.LOCK_UN) # release
+                    return we_are
+
+        except IOError as ioe:
+            self.info('Error creating updater pidfile: {}'.format(e))
+            raise ioe
+
+        return we_are
 
 
     def debug(self, msg):
         if self.log:
             self.log.debug(msg)
 
+
     def info(self, msg):
         if self.log:
             self.log.info(msg)
+
 
     def warn(self, msg):
         if self.log:
             self.log.warn(msg)
 
+
     def error(self, msg):
         if self.log:
             self.log.error(msg)
 
+
     def critical(self, msg):
         if self.log:
             self.log.critical(msg)
+
+
 
     # if our image list is greater than refreshold seconds old (or if it
     # does not exist yet) we will refresh it before returning it --
@@ -116,34 +184,33 @@ class Site:
         # check age...
         try:
             age = (datetime.datetime.now() -
-                self._images_timestamp).total_seconds()
+                self._images['timestamp']).total_seconds()
             
             if (age < refreshold):
                 # we have refreshed recently, just return stored data
-                return self._images
+                return self._images['data']
             else:
                 # we have not recently refreshed, so... 
                 pass #and hit the refresh call below
         except TypeError:
-            # probably because _images_timestamp is non-existant
+            # probably because _images['timestamp'] is non-existant
             pass #and hit the refresh call below
 
         try:
             self.info("Image list is {} seconds old, refreshing...".format(age))
         except NameError:
+            # age was not defined because of the TypeError in above try block
             self.info("Image list being generated for the first time...")
+
         self._refresh_image_list()
-        return self._images
+        return self._images['data']
 
 
     # scan the image directory, updating our image list
     def _refresh_image_list(self):
 
-        # record time of update
-        self._images_timestamp = datetime.datetime.now()
-
-        # given a file name, make a dict of that image's metadata for
-        # our images list (this is used in the map() call below)
+        # helper function for map() invocation below: given a file name, make
+        # a dict of that image's metadata for our images list
         def _make_image_dict(file):
 
             # skip this file if it does not look like an image
@@ -173,36 +240,67 @@ class Site:
             # same basename and incorporate it in our return value...
             base, ext = os.path.splitext(self.IMG_PATH + file)
             meta_path = base + '.json'
-            # TODO: Sort this out. Find out which errors json.load and
-            # .update may raise and then refactor
+            
             try:
-                meta_file = open(meta_path)
-            except IOError as e:
-                #TODO: error logging
-                pass
-            else:
-                with meta_file:
-                    try:
-                        meta_json = json.load(meta_file)
-                        meta_json.update(ret)
-                        return meta_json
-                    except Exception as e:
-                        self.info('Error reading metadata from "{}": {}'.format(meta_path, e))
+                with open(meta_path) as meta_file:
+                    meta_json = json.load(meta_file)
+                    meta_json.update(ret)
+                    return meta_json
+                    
+            except (IOError, ValueError) as e:
+                self.debug('Could not read metadata: {}'.format(e))
 
             # return what we've accumulated
             return ret
+        # / _make_image_dict()
 
+
+        # If we are NOT the updater, read in cached metadata
+        if (not self.IS_UPDATER):
+            try:
+                with open(os.path.join(self.CACHE_PATH, self.config.get(
+                    'cache_metadata', 'file'))) as meta_file_cached:
+                    self._images['data'] = json.load(meta_file_cached)
+                    return self._images['data']
+
+            except (IOError, ValueError) as e:
+                self.error('Could not load cached metadata from: {}'.format(e));
+                # ... fall through to retrieve the information ourselves
+       
+        # record time of this update
+        self._images['timestamp'] = datetime.datetime.now()
 
        # ls the directory of images, building a list of dicts
-        self._images = [i for i in \
+        self._images['data'] = [i for i in \
             map(_make_image_dict, os.listdir(self.IMG_PATH)) if i is not None];
 
         # Sorted descending by date
-        self._images.sort(reverse=True, key=lambda im: im.get('date'))
+        self._images['data'].sort(reverse=True, key=lambda im: im.get('date'))
 
-#        print 'Refreshed image list: [{}]'.format(', '.join(map(str, self._images)))
         self.info('Refreshed image list')
-        self.debug('Image list: [{}]'.format(', '.join(map(str, self._images))))
+        self.debug('Image list: [{}]'.format(', '.join(map(str, self._images['data']))))
+
+        # If we are the updater we should put this out to disk for the others
+        # We'll write to a temporary file and then move (atomically) the new
+        # data to replace the old.
+        if self.IS_UPDATER:
+            try:
+                # Securely create a temp file and open it
+                (tmp_fd, tmp_name) = tempfile.mkstemp(prefix='image-meta',
+                    dir=self.CACHE_PATH, text=True)
+                tmp = os.fdopen(tmp_fd, 'w')
+
+                # Dump information, close
+                json.dump(self._images['data'], tmp)
+                tmp.close()
+
+                # Move, clobbering old cached data
+                dest = os.path.join(self.CACHE_PATH, site.config.get('cache_metadata', 'file'))
+                os.rename(tmp_name, dest)
+                self.info('Cached image metadata to disk at "{}"'.format(dest))
+
+            except (IOError, ValueError, OSError) as e:
+                self.error('Problem caching image metadata: {}:{}'.format(type(e),e))
 
 
 
@@ -273,27 +371,27 @@ def serve_thumbnail(spec, image):
 
     # Return the cached thumbnail if it exists
     cached_name = '{}-{}'.format(spec, image)
-    cached_path = os.path.join(site.THUMB_PATH, cached_name)
+    cached_path = os.path.join(site.CACHE_PATH, cached_name)
     if (os.access(cached_path, os.R_OK)):
-        return bottle.static_file(cached_name, root=site.THUMB_PATH)
+        return bottle.static_file(cached_name, root=site.CACHE_PATH)
 
 # TODO: refactor above to use try/except
 
     # If not, we'll try generating the thumbnail...
 
     # Try creating the cache directory if not existing already...
-    if not (os.access(site.THUMB_PATH, os.F_OK)):
-        os.mkdir(site.THUMB_PATH, 0755)
+    if not (os.access(site.CACHE_PATH, os.F_OK)):
+        os.mkdir(site.CACHE_PATH, 0755)
 
     # Do we have a cache dir now?
-    if not (os.path.isdir(site.THUMB_PATH)):
-        err = 'Cache "{}" not a directory'.format(site.THUMB_PATH)
+    if not (os.path.isdir(site.CACHE_PATH)):
+        err = 'Cache "{}" not a directory'.format(site.CACHE_PATH)
         site.error(err)
         bottle.abort(500, err)
 
     # Is it writeable?
-    if not (os.access(site.THUMB_PATH, os.W_OK)):
-        err = 'Cache "{}" not writeable'.format(site.THUMB_PATH)
+    if not (os.access(site.CACHE_PATH, os.W_OK)):
+        err = 'Cache "{}" not writeable'.format(site.CACHE_PATH)
         site.error(err)
         bottle.abort(500, err)
 
@@ -306,7 +404,7 @@ def serve_thumbnail(spec, image):
             'images', 'route_raw'), image))
 
     thumb.save(cached_path)
-    return bottle.static_file(cached_name, root=site.THUMB_PATH)
+    return bottle.static_file(cached_name, root=site.CACHE_PATH)
 
 
 # The 'spec' in the thumbnail route is a 1+ digit unsigned integer
