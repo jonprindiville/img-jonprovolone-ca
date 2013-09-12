@@ -193,34 +193,31 @@ bottle.TEMPLATE_PATH.insert(0, os.path.join(site.THIS_PATH,
 @site.app.route('/n/<n:int>')
 @site.app.route('/n/<n:int>/s/<skip:int>')
 def serve_main(skip=0, n=8):
-    if bottle.request.query.fmt == 'json':
-        ret = {'skip': skip, 'n': n,
-            'images': site.images()[skip:skip+n]}
-        return json.dumps(ret)
-    elif bottle.request.query.fmt == 'frag':
-        return bottle.template('image-listing-images',
-            images=site.images()[skip:skip+n],
-            expected=n)
-    else:
-        return bottle.template('image-listing',
-            site_title=site.config.get('site', 'title'),
-            title=site.config.get('site', 'title'),
-            skip=skip, n=n, end=len(site.images()),
+    if bottle.request.query.fmt == 'frag':
+        return bottle.template('image-listing-images', expected=n,
             images=site.images()[skip:skip+n])
-#TODO: pass site to templates... simplify, man
+    else:
+        return bottle.template('image-listing', site=site, skip=skip, n=n)
 
 @site.app.route('/pages/<name>')
 def serve_page(name):
     try:
-        page_data = json.load(open(
-            os.path.join(site.config.get('site', 'page_dir'),
-                '{}.json'.format(name))))
+        with open(os.path.join(site.config.get('site', 'page_dir'),
+            '{}.json'.format(name))) as page_file:
+            page_data = json.load(page_file)
 
-        return bottle.template(page_data.get('template'), data=page_data,
-            site_title=site.config.get('site', 'title'))
-    except Error as e:
-        site.error('Error while rendering "{}": {}'.format(name, e.strerror));
-        bottle.abort(404, 'Page "{}" not found'.format(name))
+        return bottle.template(page_data.get('template'),
+            data=page_data, site=site)
+
+    except ValueError as ve:
+        msg = 'Exception while parsing page data'
+        site.error(msg + ": " + str(ve))
+        bottle.abort(500, msg)
+
+    except Exception as e:
+        msg = 'Exception while rendering page'
+        site.error(msg + ": " + str(e));
+        bottle.abort(500, msg)
     
 
 @site.app.route('/assets/<file:path>')
@@ -270,10 +267,15 @@ def serve_thumbnail(spec, image):
         site.error(err)
         bottle.abort(500, err)
 
-    # Resize according to spec
-    thumb = do_resize(Image.open(os.path.join(site.IMG_PATH, image)), spec)
-    thumb.save(cached_path)
+    # Resize according to spec, if the user has asked for the image to
+    # be enlarged, we'll see a ValueError from do_resize, redirect to original
+    try:
+        thumb = do_resize(Image.open(os.path.join(site.IMG_PATH, image)), spec)
+    except ValueError:
+        bottle.redirect('{}{}'.format(site.config.get(
+            'images', 'route_raw'), image))
 
+    thumb.save(cached_path)
     return bottle.static_file(cached_name, root=site.THUMB_PATH)
 
 
@@ -284,8 +286,8 @@ def serve_thumbnail(spec, image):
 # The aspect ratio of the image will be maintained.
 #
 # 's': create a square image. Scale such that the image's SMALLER
-# dimension matches the one given in the URL and then crop in the other
-# dimension to obtain a square.
+# dimension matches the one given in the URL and then crop (centered) in the
+# other dimension to obtain a square.
 #
 # 'h': The dimension in the URL is the maximum height
 #
@@ -293,6 +295,8 @@ def serve_thumbnail(spec, image):
 #
 # no letter: The dimension in the URL is the maximum of either dimension
 # (preserve aspect ratio)
+#
+# Will raise a ValueError if an enlargement is requested
 def do_resize(image, spec):
 
     # original sizes
@@ -301,8 +305,9 @@ def do_resize(image, spec):
     # requested dimension as int
     new_size = int(spec.translate(string.maketrans('hsw', '   ')))
 
+    # We don't do enlarging
     if (new_size >= o_width) and (new_size >= o_height):
-        return image
+        raise ValueError('Enlargement requested')
 
     def _resize_w(image, size):
         width = size
