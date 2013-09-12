@@ -103,7 +103,7 @@ header, .main {
     height: 200px;
 }
 
-#more-images a {
+#more-images p.msg {
     position: absolute;
     top: 50%;
     margin-top: -0.75em;

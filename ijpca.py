@@ -199,7 +199,8 @@ def serve_main(skip=0, n=8):
         return json.dumps(ret)
     elif bottle.request.query.fmt == 'frag':
         return bottle.template('image-listing-images',
-            images=site.images()[skip:skip+n])
+            images=site.images()[skip:skip+n],
+            expected=n)
     else:
         return bottle.template('image-listing',
             site_title=site.config.get('site', 'title'),
