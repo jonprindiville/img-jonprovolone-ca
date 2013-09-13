@@ -6,7 +6,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import bottle, ConfigParser, datetime, errno, fcntl, json, logging, os, re, shlex, string, tempfile
+import bottle, ConfigParser, datetime, errno, fcntl, json, logging, os, re, shlex, string, tempfile, time
 from PIL import Image
 
 
@@ -83,9 +83,11 @@ class Site:
             self.config.get('site', 'cache_dir'), '')
 
         self.IS_UPDATER = self.am_i_the_updater()
-        
-        print '{}|Init complete. I am {}the updater process'.format(
-            pid, '' if self.IS_UPDATER else 'not ')
+
+        done = 'Init complete. I am {}the updater process'.format(
+            '' if self.IS_UPDATER else 'not ')
+        print '{}|{}'.format(pid, done)
+        self.info(done)
 
 
     # Decide if this process should act as updater or not. If there
@@ -183,8 +185,7 @@ class Site:
 
         # check age...
         try:
-            age = (datetime.datetime.now() -
-                self._images['timestamp']).total_seconds()
+            age = int(time.time()) - self._images['timestamp']
             
             if (age < refreshold):
                 # we have refreshed recently, just return stored data
@@ -192,7 +193,7 @@ class Site:
             else:
                 # we have not recently refreshed, so... 
                 pass #and hit the refresh call below
-        except TypeError:
+        except TypeError as te:
             # probably because _images['timestamp'] is non-existant
             pass #and hit the refresh call below
 
@@ -200,7 +201,7 @@ class Site:
             self.info("Image list is {} seconds old, refreshing...".format(age))
         except NameError:
             # age was not defined because of the TypeError in above try block
-            self.info("Image list being generated for the first time...")
+            self.info("Image list not found...")
 
         self._refresh_image_list()
         return self._images['data']
@@ -260,7 +261,9 @@ class Site:
             try:
                 with open(os.path.join(self.CACHE_PATH, self.config.get(
                     'cache_metadata', 'file'))) as meta_file_cached:
-                    self._images['data'] = json.load(meta_file_cached)
+                    self._images = json.load(meta_file_cached)
+                    self.info('Loaded cached metadata from {}'.format(
+                        self._images['timestamp']))
                     return self._images['data']
 
             except (IOError, ValueError) as e:
@@ -268,7 +271,7 @@ class Site:
                 # ... fall through to retrieve the information ourselves
        
         # record time of this update
-        self._images['timestamp'] = datetime.datetime.now()
+        self._images['timestamp'] = int(time.time())
 
        # ls the directory of images, building a list of dicts
         self._images['data'] = [i for i in \
@@ -291,7 +294,7 @@ class Site:
                 tmp = os.fdopen(tmp_fd, 'w')
 
                 # Dump information, close
-                json.dump(self._images['data'], tmp)
+                json.dump(self._images, tmp)
                 tmp.close()
 
                 # Move, clobbering old cached data
