@@ -136,7 +136,7 @@ class Site:
                     pass
                 else:
                     # we got the lock, we are the updater
-                    pidfile.write(os.getpid())
+                    pidfile.write(str(os.getpid()))
                     we_are = True
                     fcntl.lockf(pidfile, fcntl.LOCK_UN) # release
                     return we_are
@@ -441,7 +441,7 @@ def serve_thumbnail(spec, image):
     try:
         thumb = do_resize(Image.open(os.path.join(site.IMG_PATH, image)), spec)
     except ValueError:
-        bottle.redirect(site.cfg.get('images', 'route_file') + image))
+        bottle.redirect(site.cfg.get('images', 'route_file') + image)
 
     thumb.save(cached_path)
     return bottle.static_file(cached_name, root=site.CACHE_PATH)
