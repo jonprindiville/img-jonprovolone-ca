@@ -1,4 +1,5 @@
 {
-    "name": "yellow and white hotel",
-    "date": "2008-04-06"
+    "title": "yellow and white",
+    "comment": "a resort in cancun",
+    "tags": ["hotel", "mexico", "cancun"]
 }
