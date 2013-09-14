@@ -1,4 +1,4 @@
-%s_title = site.config.get('site','title')
+%s_title = site.cfg.get('site','title')
 <!DOCTYPE html>
 <html>
 <head>

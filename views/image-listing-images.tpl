@@ -2,7 +2,7 @@
 %# be used on its own (".../?fmt=frag" requests) by js requests
 %for image in images:
     %if image is not None:
-        <a href='{{image['url']}}/1000'><img src='{{image['url']}}/200s' alt='{{image.get('name', '')}}' /></a>
+        <a href='{{image['url_html']}}'><img src='{{image['url_img']}}/200s' {{!('title=\'{}\''.format(image['title'])) if ('title' in image) else ''}} /></a>
     %end \\
 %end \\
 \\

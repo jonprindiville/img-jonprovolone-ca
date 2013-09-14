@@ -16,7 +16,7 @@ function image_loader() {
 
     // Now we will load:
     //      images[skipped+loaded:skipped+2*loaded]
-    $.get('/n/' + loaded + '/s/' + new_skip + '?fmt=frag', 
+    $.get('/img/list/' + new_skip + '+' + loaded + '?fmt=frag', 
         function(data) {
             // Using replaceWith here because the returned fragment will
             // have its own #more-images (with text and class dependant

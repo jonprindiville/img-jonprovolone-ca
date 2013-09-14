@@ -114,6 +114,31 @@ header, .main {
     text-decoration: none;
 }
 
+.image-show img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.image-show .title {
+    font-style: italic;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.image-show .original {
+    font-size: 50%;
+}
+
+.image-show .date {
+    display: block;
+    font-size: 60%;
+}
+
+.image-show .comment {
+    font-size: 80%;
+}
+
 /** 0 -> 320px *******************************************************/
 @media all and (max-width: 320px) {
 
@@ -132,6 +157,10 @@ header, .main {
         width: 250px;
         height: 250px;
     }
+
+    article.image-show img {
+        height: auto;
+    }
 }
 
 /** 321px -> 480px ***************************************************/
@@ -148,7 +177,6 @@ header, .main {
         margin-left: 5%;
         margin-right: 5%;
     }
-
 }
 
 /** 769px+ ***********************************************************/
@@ -180,5 +208,12 @@ header, .main {
 
     header > * {
         display: inline-block;
+    }
+}
+
+/** 768px and below **************************************************/
+@media all and (max-width: 768px) {
+    article.image-show img {
+        max-width: 100%
     }
 }

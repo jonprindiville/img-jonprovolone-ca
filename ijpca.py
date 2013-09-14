@@ -29,17 +29,17 @@ class Site:
         self._images = {'timestamp': None, 'data': []}
         
         # Load config
-        self.config = ConfigParser.ConfigParser()
+        self.cfg = ConfigParser.ConfigParser()
         try:
             print '{}|Initializing. Reading default configuration data...'.format(pid)
 
             with open(cfg_file) as cfg:
-                self.config.readfp(cfg)
+                self.cfg.readfp(cfg)
             
             try:
-                cfg_files = shlex.split(self.config.get('config', 'more'))
+                cfg_files = shlex.split(self.cfg.get('config', 'more'))
                 print '{}|Reading additional config ({})...'.format(pid, cfg_files)
-                self.config.read(cfg_files)
+                self.cfg.read(cfg_files)
             except ConfigParser.NoOptionError:
                 pass # No additional config to read
 
@@ -50,14 +50,14 @@ class Site:
         # Initialize logging
         self.log = False
         try:
-            if self.config.getboolean('logging', 'enable'):
+            if self.cfg.getboolean('logging', 'enable'):
                 try:
-                    loglevel = self.config.get('logging', 'level').upper()
+                    loglevel = self.cfg.get('logging', 'level').upper()
                 except ConfigParser.NoOptionError:
                     loglevel = 'NOTSET'
                 
                 try:
-                    logfile = self.config.get('logging', 'file')
+                    logfile = self.cfg.get('logging', 'file')
                 except ConfigParser.NoOptionError:
                     logfile = None
 
@@ -78,9 +78,9 @@ class Site:
         # Set up some paths
         self.THIS_PATH = os.getcwd()
         self.IMG_PATH = os.path.join(self.THIS_PATH,
-            self.config.get('images', 'dir'), '')
+            self.cfg.get('images', 'dir'), '')
         self.CACHE_PATH = os.path.join(self.THIS_PATH,
-            self.config.get('site', 'cache_dir'), '')
+            self.cfg.get('site', 'cache_dir'), '')
 
         self.IS_UPDATER = self.am_i_the_updater()
 
@@ -100,7 +100,7 @@ class Site:
         # helper for below...
         def _open_pidfile(mode):
             return open(os.path.join(self.CACHE_PATH,
-                self.config.get('cache_metadata', 'pidfile')), mode)
+                self.cfg.get('cache_metadata', 'pidfile')), mode)
 
         # Open the pidfile for reading if it already exists...
         try:
@@ -181,7 +181,7 @@ class Site:
 
         # use configured value for refreshold if none given
         if not refreshold:
-            refreshold = self.config.getint('images', 'refresh')
+            refreshold = self.cfg.getint('images', 'refresh')
 
         # check age...
         try:
@@ -221,7 +221,9 @@ class Site:
             filepath = os.path.join(self.IMG_PATH, file)
 
             # build a basic dict for this image...
-            ret = {'url': self.config.get('images', 'route_raw') + file}
+            ret = {'filename': file,
+                'url_img': self.cfg.get('images', 'route_file') + file,
+                'url_html': self.cfg.get('images', 'route_html') + file}
 
             # Try pulling date from EXIF... 
             try:
@@ -248,8 +250,10 @@ class Site:
                     meta_json.update(ret)
                     return meta_json
                     
-            except (IOError, ValueError) as e:
-                self.debug('Could not read metadata: {}'.format(e))
+            except IOError as e:
+                self.info('Could not read metadata file: {}'.format(e))
+            except ValueError as e:
+                self.error('Could not parse {} as JSON: {}'.format(meta_path, e))
 
             # return what we've accumulated
             return ret
@@ -259,11 +263,11 @@ class Site:
         # If we are NOT the updater, read in cached metadata
         if (not self.IS_UPDATER):
             try:
-                with open(os.path.join(self.CACHE_PATH, self.config.get(
+                with open(os.path.join(self.CACHE_PATH, self.cfg.get(
                     'cache_metadata', 'file'))) as meta_file_cached:
                     self._images = json.load(meta_file_cached)
                     self.info('Loaded cached metadata from {}'.format(
-                        self._images['timestamp']))
+                        time.ctime(self._images['timestamp'])))
                     return self._images['data']
 
             except (IOError, ValueError) as e:
@@ -289,7 +293,8 @@ class Site:
         if self.IS_UPDATER:
             try:
                 # Securely create a temp file and open it
-                (tmp_fd, tmp_name) = tempfile.mkstemp(prefix='image-meta',
+                (tmp_fd, tmp_name) = tempfile.mkstemp(
+                    prefix=site.cfg.get('cache_metadata', 'file'),
                     dir=self.CACHE_PATH, text=True)
                 tmp = os.fdopen(tmp_fd, 'w')
 
@@ -298,7 +303,7 @@ class Site:
                 tmp.close()
 
                 # Move, clobbering old cached data
-                dest = os.path.join(self.CACHE_PATH, site.config.get('cache_metadata', 'file'))
+                dest = os.path.join(self.CACHE_PATH, site.cfg.get('cache_metadata', 'file'))
                 os.rename(tmp_name, dest)
                 self.info('Cached image metadata to disk at "{}"'.format(dest))
 
@@ -313,27 +318,61 @@ site = Site()
 
 # Add our templates to bottle's path:
 bottle.TEMPLATE_PATH.insert(0, os.path.join(site.THIS_PATH,
-    site.config.get('site', 'template_dir'), ''))
+    site.cfg.get('site', 'template_dir'), ''))
 
 
 
 # Handlers ############################################################
 
+# Bounce these requests to the image list
 @site.app.route('/')
-@site.app.route('/s/<skip:int>')
-@site.app.route('/n/<n:int>')
-@site.app.route('/n/<n:int>/s/<skip:int>')
-def serve_main(skip=0, n=8):
+@site.app.route(site.cfg.get('images', 'route_list').rstrip('/'))
+@site.app.route(site.cfg.get('images', 'route_list').replace('list/', ''))
+@site.app.route(site.cfg.get('images', 'route_list').replace('/list/', ''))
+def _redir_to_img_list():
+    bottle.redirect(site.cfg.get('images', 'route_list'))
+
+
+@site.app.route(site.cfg.get('images', 'route_list'))
+@site.app.route(site.cfg.get('images', 'route_list') +
+    '<offset:re:([0-9]*)\+([0-9]*)\/?>')
+def serve_img_list(offset=None):
+    offs = offset.split('+') if (offset is not None) else None
+
+    try:
+        skip = int(offs[0])
+    except:
+        skip = 0
+
+    try:
+        n = int(offs[1])
+    except:
+        n = site.cfg.getint('images', 'n_per_page')
+
     if bottle.request.query.fmt == 'frag':
         return bottle.template('image-listing-images', expected=n,
             images=site.images()[skip:skip+n])
     else:
         return bottle.template('image-listing', site=site, skip=skip, n=n)
 
+
+@site.app.route(site.cfg.get('images', 'route_html') + '<image>')
+def serve_img_html(image):
+    try:
+        return bottle.template('image-show', site=site, image=filter(
+            (lambda x: x['filename'] == image), site.images())[0])
+    except IndexError: 
+        # Guess we didn't have that
+        msg = 'Image {} not found'.format(image)
+        site.error(msg)
+        bottle.abort(404, msg)
+
+
+# TODO: not use json for page data -- no long lines (maybe yaml?)
 @site.app.route('/pages/<name>')
 def serve_page(name):
     try:
-        with open(os.path.join(site.config.get('site', 'page_dir'),
+        with open(os.path.join(site.cfg.get('site', 'page_dir'),
             '{}.json'.format(name))) as page_file:
             page_data = json.load(page_file)
 
@@ -353,18 +392,17 @@ def serve_page(name):
 
 @site.app.route('/assets/<file:path>')
 def serve_asset(file):
-    return bottle.static_file(file, root=site.config.get('site',
+    return bottle.static_file(file, root=site.cfg.get('site',
         'asset_dir'))
 
 
-@site.app.route('{}{}'.format(site.config.get('images', 'route_raw'),
-    '<image>'))
+@site.app.route(site.cfg.get('images', 'route_file') + '<image>')
 def serve_static_image(image):
     return bottle.static_file(image, root=site.IMG_PATH)
 
 
-@site.app.route('{}{}'.format(site.config.get('images', 'route_raw'),
-    '<image>/<spec:re:[1-9][0-9]*(s|h|w)?>'))
+@site.app.route(site.cfg.get('images', 'route_file') +
+    '<image>/<spec:re:[1-9][0-9]*(s|h|w)?>')
 def serve_thumbnail(spec, image):
     
     # Is this request referring to a valid image?
@@ -403,8 +441,7 @@ def serve_thumbnail(spec, image):
     try:
         thumb = do_resize(Image.open(os.path.join(site.IMG_PATH, image)), spec)
     except ValueError:
-        bottle.redirect('{}{}'.format(site.config.get(
-            'images', 'route_raw'), image))
+        bottle.redirect(site.cfg.get('images', 'route_file') + image))
 
     thumb.save(cached_path)
     return bottle.static_file(cached_name, root=site.CACHE_PATH)
@@ -482,5 +519,5 @@ def do_resize(image, spec):
 
 # Debug ###############################################################
 if __name__ == "__main__":
-    site.app.run(host=site.config.get('debug', 'host'),
-        port=site.config.get('debug', 'port'))
+    site.app.run(host=site.cfg.get('debug', 'host'),
+        port=site.cfg.get('debug', 'port'))

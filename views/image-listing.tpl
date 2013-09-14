@@ -1,13 +1,14 @@
 %images = site.images()
+%rt_l = site.cfg.get('images', 'route_list')
 %#
 %## nav() gets stuffed into the header of layout.tpl
 %def nav():
         <p class='nav'>
     %if (skip > 0): 
-            <a id='prev-link' href='/n/{{n}}/s/{{skip - n}}'>previous</a>
+            <a id='prev-link' href='{{"{}{}+{}".format(rt_l, max(skip - n, 0), n)}}'>previous</a>
     %end \\
     %if ((skip + n) < len(images)):
-            <a id='next-link' href='/n/{{n}}/s/{{skip + n}}'>next</a>
+            <a id='next-link' href='{{"{}{}+{}".format(rt_l, skip + n, n)}}'>next</a>
     %end \\
         </p>
 %end \\
@@ -23,4 +24,4 @@
 %include image-listing-images images=images[skip:skip+n], expected=n
 <!-- /image-listing -->
 %#
-%rebase layout title=title if defined('title') else None, site=site, nav=nav, scripts=scripts
+%rebase layout title=None, site=site, nav=nav, scripts=scripts
