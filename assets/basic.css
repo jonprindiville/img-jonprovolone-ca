@@ -139,6 +139,27 @@ header, .main {
     font-size: 80%;
 }
 
+.image-show .tags {
+    padding-left: 0;
+    font-family: Roboto, sans-serif;
+    font-weight: 300;
+    font-size: 60%;
+    text-transform: uppercase;
+}
+
+.image-show .tags:before {
+    content: 'tags:'
+}
+
+.image-show .tags li {
+    display: inline-block;
+    padding-left: 0;
+}
+
+.image-show .tags li + li:before {
+    content: '/ ';
+}
+
 /** 0 -> 320px *******************************************************/
 @media all and (max-width: 320px) {
 

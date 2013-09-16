@@ -2,8 +2,9 @@
  * Load more images into the current HTML document (depends on jQuery)*
  *********************************************************************/
 
-// skipped and loaded are expected to have been inserted into the HTML
-// doc that this script is loaded from
+// *** IMPORTANT ***
+// skipped, loaded, and link_base are expected to have been inserted
+// into the HTML doc that loads this script
 new_skip = skipped + loaded;
 
 /* Fetches HTML fragment with new images to replace the previous
@@ -16,7 +17,7 @@ function image_loader() {
 
     // Now we will load:
     //      images[skipped+loaded:skipped+2*loaded]
-    $.get('/img/list/' + new_skip + '+' + loaded + '?fmt=frag', 
+    $.get(link_base + new_skip + '+' + loaded + '?fmt=frag', 
         function(data) {
             // Using replaceWith here because the returned fragment will
             // have its own #more-images (with text and class dependant
@@ -29,7 +30,7 @@ function image_loader() {
             // Update the navigation at the top of the page -- if somebody
             // hits that link the next page that is loaded should skip over
             // images that we loaded here with our javascript.
-            $('#next-link').attr('href', '/n/' + loaded + '/s/' + new_skip );
+            $('#next-link').attr('href', link_base + new_skip + '+' + loaded);
         }
     );
 }

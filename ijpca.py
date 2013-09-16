@@ -111,8 +111,9 @@ class Site:
                     # see if this pid is active
                     os.kill(int(pidfile.read()), 0)
                 except (ValueError, OSError):
-                    # non-integer read from file or pid no longer running
-                    # so rewind the file and write our own pid in there
+                    # ValueError: non-integer read from file or OSError: pid
+                    # no longer running so rewind the file and write our own
+                    # pid in there
                     pidfile.seek(0)
                     pidfile.write(str(os.getpid()))
                     we_are = True
@@ -177,7 +178,14 @@ class Site:
     # if our image list is greater than refreshold seconds old (or if it
     # does not exist yet) we will refresh it before returning it --
     # otherwise skip the refresh, return the data we have
-    def images(self, refreshold=None):
+    def images(self, refreshold=None, tag=None):
+
+        def _images_by_tag(tag):
+            if tag is None:
+                return self._images['data']
+
+            return filter(lambda x: ('tags' in x) and (tag in x['tags']),
+                self._images['data'])
 
         # use configured value for refreshold if none given
         if not refreshold:
@@ -189,7 +197,7 @@ class Site:
             
             if (age < refreshold):
                 # we have refreshed recently, just return stored data
-                return self._images['data']
+                return _images_by_tag(tag)
             else:
                 # we have not recently refreshed, so... 
                 pass #and hit the refresh call below
@@ -204,7 +212,7 @@ class Site:
             self.info("Image list not found...")
 
         self._refresh_image_list()
-        return self._images['data']
+        return _images_by_tag(tag)
 
 
     # scan the image directory, updating our image list
@@ -324,7 +332,7 @@ bottle.TEMPLATE_PATH.insert(0, os.path.join(site.THIS_PATH,
 
 # Handlers ############################################################
 
-# Bounce these requests to the image list
+# Bounce these requests to the default image list
 @site.app.route('/')
 @site.app.route(site.cfg.get('images', 'route_list').rstrip('/'))
 @site.app.route(site.cfg.get('images', 'route_list').replace('list/', ''))
@@ -333,10 +341,13 @@ def _redir_to_img_list():
     bottle.redirect(site.cfg.get('images', 'route_list'))
 
 
+re_offset = '<offset:re:([0-9]*)\+([0-9]*)\/?>'
+re_tag = '<tag:re::[-a-zA-Z0-9 ]+>'
 @site.app.route(site.cfg.get('images', 'route_list'))
-@site.app.route(site.cfg.get('images', 'route_list') +
-    '<offset:re:([0-9]*)\+([0-9]*)\/?>')
-def serve_img_list(offset=None):
+@site.app.route(site.cfg.get('images', 'route_list') + re_offset)
+@site.app.route(site.cfg.get('images', 'route_list') + re_tag)
+@site.app.route(site.cfg.get('images', 'route_list') + re_tag + '/' + re_offset)
+def serve_img_list(offset=None, tag=None):
     offs = offset.split('+') if (offset is not None) else None
 
     try:
@@ -349,11 +360,17 @@ def serve_img_list(offset=None):
     except:
         n = site.cfg.getint('images', 'n_per_page')
 
+    if tag is not None:
+        tag = tag.lstrip(':')
+
     if bottle.request.query.fmt == 'frag':
+        # return only the inner HTML of the page (used by browser js requests)
         return bottle.template('image-listing-images', expected=n,
-            images=site.images()[skip:skip+n])
+            images=site.images(tag=tag)[skip:skip+n])
     else:
-        return bottle.template('image-listing', site=site, skip=skip, n=n)
+        # return whole HTML layout
+        return bottle.template('image-listing',
+            site=site, skip=skip, n=n, tag=tag)
 
 
 @site.app.route(site.cfg.get('images', 'route_html') + '<image>')
