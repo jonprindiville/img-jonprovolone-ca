@@ -9,6 +9,8 @@
 import bottle, ConfigParser, datetime, errno, fcntl, json, logging, os, re, shlex, string, tempfile, time, urllib
 from PIL import Image
 
+
+
 # Global level defs ###################################################
 
 EXIF_DATETIME = 36867 
@@ -185,9 +187,6 @@ class Site:
             return filter(lambda x: ('tags' in x) and (tag in x['tags']),
                 self._images['data'])
 
-        if tag is not None:
-            tag = urllib.unquote(tag)
-
         # use configured value for refreshold if none given
         if not refreshold:
             refreshold = self.cfg.getint('images', 'refresh')
@@ -343,7 +342,7 @@ def _redir_to_img_list():
 
 
 re_offset = '<offset:re:([0-9]*)\+([0-9]*)\/?>'
-re_tag = '<tag:re::[-a-zA-Z0-9 %]+>'
+re_tag = '<tag:re::[-%a-zA-Z0-9 ]+>'
 @site.app.route(site.cfg.get('images', 'route_list'))
 @site.app.route(site.cfg.get('images', 'route_list') + re_offset)
 @site.app.route(site.cfg.get('images', 'route_list') + re_tag)
@@ -363,6 +362,7 @@ def serve_img_list(offset=None, tag=None):
 
     if tag is not None:
         tag = tag.lstrip(':')
+        tag = urllib.unquote(tag)
 
     if bottle.request.query.fmt == 'frag':
         # return only the inner HTML of the page (used by browser js requests)
