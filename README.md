@@ -67,3 +67,4 @@ expired cached copy from disk.
 - thumbnail cache aging/eviction
 - locking for thumbnail writing? (passenger spawns multiple processes)
 - examine bottle's cache-control settings
+- bottle 0.12's templating is nicer

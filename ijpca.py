@@ -82,18 +82,22 @@ class Site:
         self.CACHE_PATH = os.path.join(self.THIS_PATH,
             self.cfg.get('site', 'cache_dir'), '')
 
-        self.IS_UPDATER = self.am_i_the_updater()
+        self.update_updater()
 
-        done = 'Init complete. I am {}the updater process'.format(
-            '' if self.IS_UPDATER else 'not ')
+        done = 'Init complete.'
         print '{}|{}'.format(pid, done)
         self.info(done)
 
+    def update_updater(self):
+        if (not self.IS_UPDATER):
+            self.IS_UPDATER = self.check_updater()
+        self.info('I am {}the updater process'.format(
+            '' if self.IS_UPDATER else 'not ')
 
     # Decide if this process should act as updater or not. If there
     # are multiple copies of this app running we only want one to
     # be acting as the updater.
-    def am_i_the_updater(self):
+    def check_updater(self):
 
         we_are = False
 
@@ -175,11 +179,12 @@ class Site:
 
 
 
-    # if our image list is greater than refreshold seconds old (or if it
+    # if our image list is greater than refresh_age seconds old (or if it
     # does not exist yet) we will refresh it before returning it --
     # otherwise skip the refresh, return the data we have
-    def images(self, refreshold=None, tag=None):
+    def images(self, refresh_age=None, tag=None):
 
+        # helper for below
         def _images_by_tag(tag):
             if tag is None:
                 return self._images['data']
@@ -187,31 +192,46 @@ class Site:
             return filter(lambda x: ('tags' in x) and (tag in x['tags']),
                 self._images['data'])
 
-        # use configured value for refreshold if none given
-        if not refreshold:
-            refreshold = self.cfg.getint('images', 'refresh')
+
+        # helper for below. Return age of currently held image
+        # metadata in seconds, or None if no data
+        def _age_of_image_data():
+            try:
+                return int(time.time()) - self._images['timestamp']
+                
+            except TypeError as te:
+                # _images['timestamp'] is non-existant this is our first run.
+                return None
+        #/_age_of_image_data()
+
+
+        # use configured value for refresh_age if none given
+        if not refresh_age:
+            refresh_age = self.cfg.getint('images', 'refresh')
 
         # check age...
-        try:
-            age = int(time.time()) - self._images['timestamp']
-            
-            if (age < refreshold):
+        cur_age = _age_of_image_data()
+
+        if (cur_age is not None):
+            if (cur_age < refresh_age):
                 # we have refreshed recently, just return stored data
                 return _images_by_tag(tag)
             else:
-                # we have not recently refreshed, so... 
-                pass #and hit the refresh call below
-        except TypeError as te:
-            # probably because _images['timestamp'] is non-existant
-            pass #and hit the refresh call below
-
-        try:
-            self.info("Image list is {} seconds old, refreshing...".format(age))
-        except NameError:
-            # age was not defined because of the TypeError in above try block
+                # we have not recently refreshed
+                self.info("Image list is {} seconds old, refreshing...".format(age))
+        else:
+            # haven't got any data yet
             self.info("Image list not found...")
 
         self._refresh_image_list()
+        new_age = _age_of_image_data()
+
+        # if we did not find newer data, check that the updating process has
+        # not died -- maybe it should be this process
+        if ((cur_age is not None) && (new_age is not None) &&
+            (new_age >= cur_age)):
+            self.update_updater()
+
         return _images_by_tag(tag)
 
 
@@ -285,7 +305,7 @@ class Site:
         # record time of this update
         self._images['timestamp'] = int(time.time())
 
-       # ls the directory of images, building a list of dicts
+        # ls the directory of images, building a list of dicts
         self._images['data'] = [i for i in \
             map(_make_image_dict, os.listdir(self.IMG_PATH)) if i is not None];
 
@@ -461,7 +481,7 @@ def serve_thumbnail(spec, image):
     except ValueError:
         bottle.redirect(site.cfg.get('images', 'route_file') + image)
 
-    thumb.save(cached_path)
+    thumb.save(cached_path, quality=site.cfg.get('images', 'thumb_quality'))
     return bottle.static_file(cached_name, root=site.CACHE_PATH)
 
 
